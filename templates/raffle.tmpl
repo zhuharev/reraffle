@@ -1,0 +1,8 @@
+<a class="uk-button" href="/shuffle/{{.raffle.OwnerID}}_{{.raffle.PostID}}">Перемешать победителей</a>
+<a class="uk-button" href="/raffles/{{.raffle.OwnerID}}_{{.raffle.PostID}}?update=true">Обновить список участников</a>
+<a class="uk-button" href="/send_to_sheet?id={{.raffle.OwnerID}}_{{.raffle.PostID}}">Отправить в гугл-таблицу</a>
+
+
+<ul class="uk-list uk-list-space">{{range .raffle.Members}}
+<li {{if .InfoSended}}style="background-color:green;"{{end}}><a href="https://vk.com/id{{.VkID}}" target="_blank">{{ .Name }} (id:{{.VkID}})</a> (Место: {{.Place}})</li>
+{{end}}</ul>

@@ -1,0 +1,25 @@
+<h1>Розыгрыши паблика {{.public.VkID}}</h1>
+
+<!--<form class="uk-form" method="post" action="/add_raffle">
+
+    <fieldset data-uk-margin>
+        <legend>Добавить розыгрыш</legend>
+        <input name="raffle_url" type="text" placeholder="Ссылка на розыгрыш">
+        <button class="uk-button">Добавить</button>
+    </fieldset>
+
+</form>-->
+
+<ul class="uk-list uk-list-space">{{range .public.Raffles}}
+<li><a href="/raffles/{{.OwnerID}}_{{.PostID}}">{{.StartDate.Format "01.02"}}</a></li>
+{{end}}</ul>
+
+
+<div>
+  <ul>
+    {{range .raffleList}}
+<li>Отправлено: {{ .SendedAt.Format "01.02 15:04" }} Прочитано: {{ if .Readed}} да {{ else }} нет {{end}}
+Отвечено: {{ if .Answered}} да {{ else }} нет {{end}}</li>
+    {{end}}
+  </ul>
+</div>

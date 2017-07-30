@@ -1,0 +1,27 @@
+<h3>Авторизируйте приложение, нажав на ссылку</h3>
+<a href="/sheet_auth" target="_blank">Авторизоваться в гугл-таблицах</a>
+<form action="/save_sheet_token" method="post">
+  <input class="uk-input" type="text" name="code" placeholder="Код со страницы авторизации">
+  <button class="uk-button uk-button-default">Сохранить</button>
+</form>
+<div class="uk-margin">
+  <form action="/update_password" method="post">
+    <input class="uk-input" type="text" name="pass" placeholder="Установить новый пароль">
+    <button class="uk-button uk-button-default">Сохранить</button>
+  </form>
+</div>
+<div class="uk-margin">
+  <form action="/update_notify_text" method="post">
+    <label for="texttext">Шаблон "безответного" напоминания. (5 часов)</label>
+    <textarea class="uk-textarea" name="text" id="texttext" cols="30" rows="10">{{ .notify }}</textarea>
+    <button class="uk-button uk-button-default">Сохранить</button>
+  </form>
+</div>
+
+<div class="uk-margin">
+  <form action="/update_end_text" method="post">
+    <label for="endtext">Шаблон напоминания о завершении розыгрыша. (за 7 дней до окончания действия приза)</label>
+    <textarea class="uk-textarea" name="text" id="endtext" cols="30" rows="10">{{ .endText }}</textarea>
+    <button class="uk-button uk-button-default">Сохранить</button>
+  </form>
+</div>

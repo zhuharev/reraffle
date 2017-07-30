@@ -1,0 +1,35 @@
+<form method="post" action="/add_public">
+
+    <fieldset class="uk-fieldset">
+        <legend>Добавить паблик</legend>
+        <div class="uk-margin">
+          <input class="uk-input" name="public_id" type="text" placeholder="Id паблика">
+        </div>
+        <div class="uk-margin">
+          <label  class="uk-form-label" for="">Шаблон промокода (например, "НЛ-%d-%d" - вместо %d будет подставлены порядковый номер розыгрыша и место пользователя)</label><br>
+          <input class="uk-input" name="promocode_template" type="text" placeholder="Шаблон промокода"></div>
+        <div class="uk-margin">
+          <label class="uk-form-label" for="">Шаблон ответа на сообщение пользователя</label>
+          <textarea name="answer_template" class="uk-textarea" id="" rows="10">{{ .template }}</textarea>
+        </div>
+        <div class="uk-margin">
+          <label class="uk-form-label" for="">Id гугл-талицы (https://docs.google.com/spreadsheets/d/<b>1EQJASr9CuBlAcSmvlJoGQzqaUMxMkAW2RI_2863MLBQ</b>/edit#gid=0)</label>
+          <input class="uk-input" name="sheet_id" type="text" placeholder="Id гугл-таблицы">
+        </div>
+        <div class="uk-margin">
+          <label class="uk-form-label" for="">Название листа в гугл-документе</label>
+          <input class="uk-input" name="sheet_name" type="text" placeholder="Название листа в гугл-документе">
+        </div>
+        <div class="uk-margin">
+          <label class="uk-form-label" for="">Ключ сообщества для сообщений</label>
+          <input class="uk-input" name="vk_key" type="text" placeholder="Ключ сообщества">
+        </div>
+
+        <button class="uk-button">Добавить</button>
+
+
+
+
+    </fieldset>
+
+</form>

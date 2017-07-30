@@ -1,0 +1,12 @@
+
+<a class="uk-button" href="/add_public">Добавить сообщество</a>
+
+<style>
+.danger {
+  color: red;
+}
+</style>
+
+<ul class="uk-list uk-list-space">{{range .publics}}
+<li><a href="/publics/{{.VkID}}">{{.Title}} ({{.VkID}})</a>  [<a href="/edit/{{.VkID}}">Редактировать</a> | <a href="/publics/{{.VkID}}/delete" class="danger">Удалить</a>] | <a href="/publics/{{.VkID}}/healts"> Состояние</a></li>
+{{end}}</ul>
