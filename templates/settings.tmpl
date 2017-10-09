@@ -25,3 +25,11 @@
     <button class="uk-button uk-button-default">Сохранить</button>
   </form>
 </div>
+
+<div class="uk-margin">
+  <form action="/update_not_a_winner" method="post">
+    <label for="nawt">Шаблон сообщения о том, что пользователь не является учатсником розыгрыша:</label>
+    <textarea class="uk-textarea" name="text" id="nawt" cols="30" rows="10">{{ .notAWinner }}</textarea>
+    <button class="uk-button uk-button-default">Сохранить</button>
+  </form>
+</div>

@@ -1,8 +1,6 @@
 package synchronizer
 
 import (
-	"log"
-
 	"github.com/zhuharev/reraffle/models"
 	"github.com/zhuharev/reraffle/modules/vk"
 )
@@ -28,7 +26,7 @@ func Job(token string, publicID int) (err error) {
 		return
 	}
 
-	log.Println("return, no infos for ", publicID)
+	//log.Println("return, no infos for ", publicID)
 
 	// simple optimization: don't fetch vk's api, if no infos
 	if len(infos) == 0 {

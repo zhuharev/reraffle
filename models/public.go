@@ -15,6 +15,9 @@ type Public struct {
 	SheetID       string
 	SheetName     string
 
+	NotifyText string
+	EndText    string
+
 	Raffles []Raffle
 }
 

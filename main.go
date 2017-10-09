@@ -2,14 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
-	"sort"
+	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	dry "github.com/ungerik/go-dry"
 
 	"github.com/zhuharev/reraffle/controllers"
+	"github.com/zhuharev/reraffle/controllers/callback"
 	"github.com/zhuharev/reraffle/models"
 	"github.com/zhuharev/reraffle/modules/bindata/public"
 	"github.com/zhuharev/reraffle/modules/bindata/templates"
@@ -33,9 +33,7 @@ import (
 )
 
 var (
-	publics []Public
-
-	debug                       = false
+	debug                       = true
 	checkInterval time.Duration = 60
 )
 
@@ -92,10 +90,14 @@ func runServer() {
 	}))
 
 	m.Use(func(c *macaron.Context, sess session.Store) {
+		p := c.Req.URL.Path
+		if p == "/login" || strings.HasPrefix(p, "/cb/") {
+			return
+		}
 
 		if _, ok := sess.Get("user").(string); !ok {
 			if c.Req.RequestURI != "/login" && c.Req.RequestURI != "/favicon.ico" {
-				log.Println("redirect unautarized")
+				log.Println(c.Req.RequestURI, "redirect unautarized")
 				c.Redirect("/login")
 				return
 			}
@@ -106,6 +108,7 @@ func runServer() {
 
 	m.Post("/update_notify_text", controllers.UpdateNotifyText)
 	m.Post("/update_end_text", controllers.UpdateEndText)
+	m.Post("/update_not_a_winner", controllers.UpdateNotAWinnerText)
 
 	m.Get("/login", func(c *macaron.Context) {
 		c.HTML(200, "login")
@@ -142,20 +145,83 @@ func runServer() {
 
 	m.Get("/", func(c *macaron.Context) {
 		c.Data["alo"] = "alop"
-		c.Data["publics"] = publics
+		c.Data["publics"] = models.GetPublics()
 		c.HTML(200, "index")
+	})
+
+	m.Get("/publics/:id/healts/:userID", func(c *macaron.Context) {
+
+		p := models.GetGroup(c.ParamsInt(":id"))
+		log.Println(p)
+
+		messages, err := vk.GetHistory(p.VkAccessToken, c.ParamsInt(":userID"), 10)
+		if err != nil {
+			c.Error(200, err.Error())
+			log.Println(err)
+			return
+		}
+
+		log.Println(messages)
+
+		//models.InfoSendedGet(publicID, userID, raffleID)
+
+		c.Data["messages"] = messages
+		c.HTML(200, "user_healts")
 	})
 
 	m.Get("/publics/:id/healts", func(c *macaron.Context) {
 		id := c.ParamsInt(":id")
-		p := getGroup(id)
-		err := vk.HealtsCheck(p.VkAccessToken)
-		c.Data["h_vk"] = err
-		err = sheets.HealtsCheck(p.SheetID, p.SheetName)
-		c.Data["h_sh"] = err
-		err = checkTemplate(id)
-		c.Data["h_tm"] = err
 
+		var errors []error
+
+		p := models.GetGroup(id)
+		err := vk.HealtsCheck(p.VkAccessToken)
+		if err != nil {
+			errors = append(errors, err)
+		}
+
+		rows, err := sheets.GetRows(p.SheetID, p.SheetName, true)
+		if err != nil {
+			errors = append(errors, err)
+		}
+
+		rows = reverse(rows)
+		date := ""
+
+		var resRow []models.Row
+
+		for i, v := range rows {
+			if date == "" {
+				date = v.Date
+			}
+
+			if v.VkID != 0 {
+				resRow = append(resRow, rows[i])
+			}
+
+			is, err := models.InfoSendedGet(p.VkID, v.VkID, v.Date)
+			if err != nil {
+				continue
+			}
+			rows[i].InfoSended = is.UserID == v.VkID
+			//	rows[i].DecodedDate = models.ParsePeriod(date)
+			if v.VkID != 0 {
+				resRow[len(resRow)-1].InfoSended = is.UserID == v.VkID
+			}
+		}
+
+		err = sheets.HealtsCheck(p.SheetID, p.SheetName)
+		if err != nil {
+			errors = append(errors, err)
+		}
+		err = checkTemplate(id)
+		if err != nil {
+			errors = append(errors, err)
+		}
+
+		c.Data["errors"] = errors
+		c.Data["rows"] = resRow
+		c.Data["publicID"] = id
 		c.HTML(200, "healts")
 
 	})
@@ -166,12 +232,12 @@ func runServer() {
 	})
 
 	m.Get("/publics/:id/delete", func(c *macaron.Context) {
-		deleteGroup(c.ParamsInt(":id"))
+		models.DeleteGroup(c.ParamsInt(":id"))
 		c.Redirect("/")
 	})
 
 	m.Post("/edit/:id", func(c *macaron.Context) {
-		p := Public{
+		p := models.Public{
 			PromoCodeTemplate: c.Query("promocode_template"),
 			InfoTemplate:      c.Query("answer_template"),
 			VkAccessToken:     c.Query("vk_key"),
@@ -179,6 +245,8 @@ func runServer() {
 			LastRaffle:        c.QueryInt("last_raffle"),
 			SheetID:           c.Query("sheet_id"),
 			SheetName:         c.Query("sheet_name"),
+			NotifyText:        c.Query("notify_text"),
+			EndText:           c.Query("end_text"),
 		}
 		name, err := vk.GetPublicName(p.VkID)
 		if err != nil {
@@ -186,13 +254,13 @@ func runServer() {
 		}
 		p.Title = name
 		log.Println("updated group ", p)
-		updateGroup(p)
+		models.UpdateGroup(p)
 
 		c.Redirect("/edit/" + c.Params(":id"))
 	})
 
 	m.Post("/add_public", func(c *macaron.Context) {
-		p := Public{
+		p := models.Public{
 			PromoCodeTemplate: c.Query("promocode_template"),
 			InfoTemplate:      c.Query("answer_template"),
 			VkAccessToken:     c.Query("vk_key"),
@@ -200,6 +268,8 @@ func runServer() {
 			LastRaffle:        c.QueryInt("last_raffle"),
 			SheetID:           c.Query("sheet_id"),
 			SheetName:         c.Query("sheet_name"),
+			NotifyText:        c.Query("notify_text"),
+			EndText:           c.Query("end_text"),
 		}
 		name, err := vk.GetPublicName(p.VkID)
 		if err != nil {
@@ -207,19 +277,7 @@ func runServer() {
 		}
 		p.Title = name
 		log.Println("added group ", p)
-		err = addGroup(p)
-		if err != nil {
-			c.Data["error"] = err.Error()
-			c.HTML(200, "error")
-			return
-		}
-
-		c.Redirect("/?t=1")
-	})
-
-	m.Post("/add_raffle", func(c *macaron.Context) {
-		raffleURL := c.Query("raffle_url")
-		err := addRaffle(raffleURL)
+		err = models.AddGroup(p)
 		if err != nil {
 			c.Data["error"] = err.Error()
 			c.HTML(200, "error")
@@ -233,7 +291,7 @@ func runServer() {
 		var (
 			id = c.ParamsInt(":id")
 		)
-		for _, v := range publics {
+		for _, v := range models.GetPublics() {
 			if v.VkID == id {
 				c.Data["public"] = v
 			}
@@ -250,77 +308,23 @@ func runServer() {
 	m.Get("/raffles/:id", func(c *macaron.Context) {
 		arr := strings.Split(c.Params(":id"), "_")
 		own := com.StrTo(arr[0]).MustInt()
-		post := com.StrTo(arr[1]).MustInt()
 
-		for pi, v := range publics {
+		for _, v := range models.GetPublics() {
 			if v.VkID == own {
-				for ri, r := range v.Raffles {
-					if r.PostID == post {
-
-						if c.QueryBool("update") {
-							ids, err := vk.GetRaffleMembers(-own, post, []int{own})
-							if err != nil {
-								log.Println(err)
-								continue
-							}
-							m := Members{}
-
-							names, err := vk.GetUserNames(ids)
-							if err != nil {
-								log.Println(err)
-								continue
-							}
-
-							for _, v := range ids {
-								m = append(m, Member{VkID: v, Name: formatName(names[v])})
-							}
-							publics[pi].Raffles[ri].Members = m
-						}
-
-						c.Data["raffle"] = publics[pi].Raffles[ri]
-					}
-				}
 				c.Data["public"] = v
 			}
 		}
 		c.HTML(200, "raffle")
 	})
 
-	m.Get("/shuffle/:id", func(c *macaron.Context) {
-		arr := strings.Split(c.Params(":id"), "_")
-		own := com.StrTo(arr[0]).MustInt()
-		post := com.StrTo(arr[1]).MustInt()
-		for pi, v := range publics {
-			if v.VkID == own {
-				for ri, r := range v.Raffles {
-					if r.PostID == post {
-						publics[pi].Raffles[ri].Members = shaffleMembers(pi, r.Members)
-						flushPublics()
-						c.Data["raffle"] = publics[pi].Raffles[ri]
-					}
-				}
-				c.Data["public"] = v
-			}
-		}
-		c.Redirect("/raffles/" + c.Params(":id"))
-	})
-
-	m.Get("/send_to_sheet", func(c *macaron.Context) {
-		r, p := getRaffle(c.Query("id"))
-		err := sheets.Append(p.SheetID, p.SheetName, r.ToValues())
-		if err != nil {
-			log.Println(err)
-		}
-
-		c.Redirect("/")
-	})
-
 	m.Get("/settings", func(c *macaron.Context) {
 
-		endText, _ := models.EndTextGet()
-		notifyText, _ := models.NotifyTextGet()
+		endText, _ := models.EndTextGet(0)
+		notifyText, _ := models.NotifyTextGet(0)
+		notText, _ := models.NotAWinnerTextGet(0)
 		c.Data["notify"] = notifyText
 		c.Data["endText"] = endText
+		c.Data["notAWinner"] = notText
 
 		c.HTML(200, "settings")
 	})
@@ -336,32 +340,142 @@ func runServer() {
 	})
 
 	m.Get("/edit/:id", func(c *macaron.Context) {
-		gr := getGroup(c.ParamsInt(":id"))
+		gr := models.GetGroup(c.ParamsInt(":id"))
 		c.Data["group"] = gr
 		c.HTML(200, "edit")
 	})
 
+	m.Any("/cb/:key", callback.Handler)
+
 	m.Run(3381)
 }
 
-func getRaffle(id string) (ra Raffle, p Public) {
-	arr := strings.Split(id, "_")
-	own := com.StrTo(arr[0]).MustInt()
-	post := com.StrTo(arr[1]).MustInt()
+func reverse(numbers []models.Row) []models.Row {
+	for i, j := 0, len(numbers)-1; i < j; i, j = i+1, j-1 {
+		numbers[i], numbers[j] = numbers[j], numbers[i]
+	}
+	return numbers
+}
 
-	for pi, v := range publics {
-		if v.VkID == own {
-			p = v
-			for ri, r := range v.Raffles {
-				if r.PostID == post {
-					ra = publics[pi].Raffles[ri]
-					log.Println("found", ra)
-					return
-				}
-			}
+var crms []Crm
+
+type Crm struct {
+	Key string
+}
+
+func hasCrm(key string) bool {
+	for _, v := range crms {
+		if v.Key == key {
+			return true
 		}
 	}
-	return
+	return false
+}
+
+func addCrm(key string) {
+	if hasCrm(key) {
+		return
+	}
+	crms = append(crms, Crm{Key: key})
+	dry.FileSetJSON("crms", crms)
+}
+
+func init() {
+	dry.FileUnmarshallJSON("crms", &crms)
+}
+
+func runCallBackServer() {
+	m := macaron.Classic()
+
+	m.Use(macaron.Static("public",
+		macaron.StaticOptions{
+			FileSystem: bindata.Static(bindata.Options{
+				Asset:      public.Asset,
+				AssetDir:   public.AssetDir,
+				AssetNames: public.AssetNames,
+				Prefix:     "",
+			}),
+		},
+	))
+
+	m.Use(macaron.Renderer(macaron.RenderOptions{
+		Layout:    "callback/layout",
+		Directory: "templates/callback",
+		TemplateFileSystem: bindata.Templates(bindata.Options{
+			Asset:      templates.Asset,
+			AssetDir:   templates.AssetDir,
+			AssetNames: templates.AssetNames,
+			Prefix:     "templates",
+		}),
+	}))
+
+	m.Get("/", func(c *macaron.Context) {
+		realCrms, err := models.CrmList()
+		if err != nil {
+			c.Error(200, err.Error())
+			return
+		}
+		c.Data["crms"] = realCrms
+		c.HTML(200, "callback/index")
+	})
+
+	m.Get("/help", callback.Help)
+
+	m.Post("/add_crm", func(c *macaron.Context) {
+		name := c.Query("name")
+		subdomain := c.Query("subdomain")
+
+		amoKey := c.Query("amo_key")
+		amoLogin := c.Query("amo_login")
+
+		subdomain = strings.TrimSuffix(subdomain, "/profile/")
+		key := filepath.Base(subdomain)
+
+		crm := models.Crm{
+			WebHookKey: key,
+			Name:       name,
+			Subdomain:  subdomain,
+
+			Type: models.CrmType(c.QueryInt("crm_type")),
+
+			AmoKey:   amoKey,
+			AmoLogin: amoLogin,
+		}
+
+		err := models.CrmNew(&crm)
+		if err != nil {
+			c.Error(200, err.Error())
+			return
+		}
+
+		addCrm(key)
+		c.Redirect("/")
+	})
+
+	m.Post("/edit/:key", callback.Edit)
+
+	m.Get("/delete/:key", callback.Delete)
+	m.Get("/edit/:key", func(c *macaron.Context) {
+		crmID := c.Params(":key")
+		c.Data["crmID"] = crmID
+
+		crm, err := models.CrmGet(crmID)
+		if err != nil {
+			c.Error(200, err.Error())
+			return
+		}
+		lo, err := models.CrmGetLog(crmID)
+		if err != nil {
+			c.Error(200, err.Error())
+			return
+		}
+		c.Data["log"] = lo
+		c.Data["crm"] = crm
+		c.HTML(200, "callback/edit")
+	})
+
+	log.Println("run server")
+	m.Run(3382)
 }
 
 func main() {
@@ -376,7 +490,10 @@ func main() {
 	log.Println("This is a test log entry")
 
 	sheets.Init()
-	readPublics()
+	err = models.ReadPublics()
+	if err != nil {
+		panic(err)
+	}
 
 	// dia, err := vk.GetUnreadedDialogs()
 	// if err != nil {
@@ -399,9 +516,13 @@ func main() {
 	// log.Println(dia)
 	go startCheckMessages()
 	go startSynchronizer()
-	go startNotificator()
-	runServer()
 
+	go runServer()
+	go runCallBackServer()
+
+	var wgg sync.WaitGroup
+	wgg.Add(1)
+	wgg.Wait()
 }
 
 func getWinners(in []int, count int) []int {
@@ -417,23 +538,6 @@ func getWinners(in []int, count int) []int {
 	return res
 }
 
-func shaffleMembers(pid int, in Members) Members {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	indexes := r.Perm(len(in))
-
-	lr, err := sheets.GetRaffleCount(publics[pid].SheetID, publics[pid].SheetName)
-	if err != nil {
-		log.Println(err)
-	}
-	//res := make([]Members, len(in))
-	for i, v := range indexes {
-		in[i].Place = v + 1
-		in[i].PromoCode = fmt.Sprintf(publics[pid].PromoCodeTemplate, lr+1, v+1)
-	}
-	sort.Sort(in)
-	return in
-}
-
 type Public struct {
 	Title string
 	VkID  int
@@ -446,6 +550,9 @@ type Public struct {
 	VkAccessToken string
 	SheetID       string
 	SheetName     string
+
+	NotifyText string
+	EndText    string
 
 	Raffles []Raffle
 }
@@ -493,80 +600,6 @@ func (m Members) Len() int           { return len(m) }
 func (m Members) Less(i, j int) bool { return m[i].Place < m[j].Place }
 func (m Members) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 
-func addGroup(p Public) error {
-	publics = append(publics, p)
-	return flushPublics()
-}
-
-func getGroup(vkID int) Public {
-	for i, v := range publics {
-		if v.VkID == vkID {
-			return publics[i]
-		}
-	}
-	return Public{}
-}
-
-func updateGroup(p Public) {
-	for i, v := range publics {
-		if p.VkID == v.VkID {
-			publics[i] = p
-		}
-	}
-	flushPublics()
-}
-
-func deleteGroup(id int) error {
-	for i, v := range publics {
-		if v.VkID == id {
-			publics = append(publics[:i], publics[i+1:]...)
-			break
-		}
-	}
-	return flushPublics()
-}
-
-// ex: https://vk.com/wall-147932966_2
-func addRaffle(ru string) error {
-	var gID int
-	var pID int
-	_, err := fmt.Sscanf(ru, "https://vk.com/wall-%d_%d", &gID, &pID)
-	if err != nil {
-		return err
-	}
-
-	for i, v := range publics {
-		if v.VkID == gID {
-			r := Raffle{
-				StartDate: time.Now(),
-				OwnerID:   gID,
-				PostID:    pID,
-			}
-			publics[i].Raffles = append(publics[i].Raffles, r)
-			log.Println("added rafle")
-			break
-		}
-	}
-
-	return flushPublics()
-}
-
-func readPublics() error {
-	bts, err := ioutil.ReadFile("publics.json")
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(bts, &publics)
-}
-
-func flushPublics() error {
-	bts, err := json.MarshalIndent(publics, "  ", "  ")
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile("publics.json", bts, 0777)
-}
-
 func sendInfo(vkID int) {
 
 }
@@ -575,13 +608,13 @@ var messageFmt = `Ваш промокод: %s
 %s`
 
 func checkMessages() {
-	for _, v := range publics {
+	for _, v := range models.GetPublics() {
 		if v.VkAccessToken == "" || v.SheetID == "" {
 			continue
 		}
 		dias, err := vk.GetUnreadedDialogs(v.VkAccessToken)
 		if err != nil {
-			//	log.Println(err)
+			log.Println("Error getting unreaded dialogs", err)
 			continue
 		}
 		for _, dia := range dias {
@@ -595,6 +628,11 @@ func checkMessages() {
 			//	log.Println("Info already sended", dia.Message.UserId)
 			//		continue
 			//}
+
+			if dia.Message.UserId == 64684980 {
+				log.Println(has, prize)
+			}
+
 			messages, err := vk.GetHistory(v.VkAccessToken, dia.Message.UserId, dia.Unread)
 			if err != nil {
 				log.Println(err)
@@ -606,7 +644,17 @@ func checkMessages() {
 					gift = true
 				}
 			}
-			if has && gift {
+
+			// что это?
+			_, err = models.InfoSendedGet(v.VkID, dia.Message.UserId, date)
+			if err != nil {
+				if err != models.ErrNotFound {
+					log.Println(err)
+					continue
+				}
+			}
+
+			if has && gift && err == models.ErrNotFound {
 				msg, err := render(v.InfoTemplate, promocode, prize, formatDate(date))
 				if err != nil {
 					log.Println(err)
@@ -616,19 +664,31 @@ func checkMessages() {
 				msgID, err = vk.SendMessage(v.VkAccessToken, dia.Message.UserId, msg)
 				if err != nil {
 					log.Println(err)
-					return
+					continue
 				}
 				err = models.InfoSendedNew(v.VkID, dia.Message.UserId, msgID, date)
 				if err != nil {
 					log.Println(err)
-					return
+					continue
 				}
 				err = sheets.SetUserInfoSended(v.SheetID, v.SheetName, dia.Message.UserId)
 				if err != nil {
 					log.Println(err)
-					return
+					continue
 				}
-			} else {
+			} else if gift {
+				// Пользователь написал "приз", но не является победителем
+
+				textTpl, _ := models.NotAWinnerTextGet(v.VkID)
+				if textTpl == "" {
+					continue
+				}
+
+				_, err = vk.SendMessage(v.VkAccessToken, dia.Message.UserId, textTpl)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
 				//log.Println("User not has in sheet, gift = ", gift, "has = ", has)
 			}
 
@@ -699,10 +759,14 @@ func startCheckMessages() {
 
 func startSynchronizer() {
 	for {
-		for _, p := range publics {
+		for _, p := range models.GetPublics() {
 			err := synchronizer.Job(p.VkAccessToken, p.VkID)
 			if err != nil {
 				log.Printf("[synchronizer] error: %s", err)
+			}
+			err = notificator.Job(p.VkAccessToken, p.VkID)
+			if err != nil {
+				log.Printf("[notificator] error: %s", err)
 			}
 		}
 
@@ -710,24 +774,8 @@ func startSynchronizer() {
 	}
 }
 
-func startNotificator() {
-	// wait synchronizer
-	time.Sleep(20 * time.Second)
-	log.Println("startNotificator")
-	for {
-		for _, p := range publics {
-			err := notificator.Job(p.VkAccessToken, p.VkID)
-			if err != nil {
-				log.Printf("[notificator] error: %s", err)
-			}
-		}
-
-		time.Sleep(60 * time.Second)
-	}
-}
-
 func checkTemplate(vkID int) error {
-	p := getGroup(vkID)
+	p := models.GetGroup(vkID)
 
 	_, err := template.New("alo").Parse(p.InfoTemplate)
 	return err

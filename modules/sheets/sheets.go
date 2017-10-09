@@ -418,6 +418,7 @@ func getRows(spreadsheetID string, sheetName string) (rows []models.Row, err err
 		r := sh.Sheets[idx].Data[0].RowData[i]
 		row := models.Row{}
 		for i, v := range r.Values {
+
 			switch i {
 			case 0:
 				if v.FormattedValue != "" {
@@ -446,8 +447,9 @@ func getRows(spreadsheetID string, sheetName string) (rows []models.Row, err err
 			case 5:
 				row.Date = v.FormattedValue
 			}
-		}
 
+		}
+		rows = append(rows, row)
 	}
 
 	return

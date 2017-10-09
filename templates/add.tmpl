@@ -25,6 +25,17 @@
           <input class="uk-input" name="vk_key" type="text" placeholder="Ключ сообщества">
         </div>
 
+
+        <div class="uk-margin">
+            <label for="texttext">Шаблон "безответного" напоминания. (5 часов)</label>
+            <textarea placeholder="оставьте пустым, если хотите брать значение из гловальных настроек" class="uk-textarea" name="notify_text" id="texttext" cols="30" rows="10">{{ .group.NotifyText }}</textarea>
+        </div>
+
+        <div class="uk-margin">
+            <label for="endtext">Шаблон напоминания о завершении розыгрыша. (за 7 дней до окончания действия приза)</label>
+            <textarea placeholder="оставьте пустым, если хотите брать значение из гловальных настроек" class="uk-textarea" name="end_text" id="endtext" cols="30" rows="10">{{ .group.EndText }}</textarea>
+        </div>
+
         <button class="uk-button">Добавить</button>
 
 

@@ -32,3 +32,15 @@ func UpdateNotifyText(c *macaron.Context) {
 
 	c.Redirect("/settings")
 }
+
+func UpdateNotAWinnerText(c *macaron.Context) {
+	text := c.Query("text")
+
+	err := models.NotAWinnerTextUpdate(text)
+	if err != nil {
+		c.Error(200, err.Error())
+		return
+	}
+
+	c.Redirect("/settings")
+}

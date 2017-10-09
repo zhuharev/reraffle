@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	endFile    = "endtext"
-	notifyFile = "texttext"
+	endFile        = "endtext"
+	notifyFile     = "texttext"
+	notAWinnerFile = "not_a_winner"
 )
 
 var (
@@ -21,7 +22,11 @@ func NewContext() (err error) {
 		return
 	}
 
-	err = db.Sync2(new(InfoSended))
+	db.ShowSQL(true)
+
+	err = db.Sync2(new(InfoSended),
+		new(Crm),
+		new(WebHookLog))
 
 	return
 }
@@ -32,7 +37,11 @@ func EndTextUpdate(text string) error {
 }
 
 // EndTextGet return and text
-func EndTextGet() (string, error) {
+func EndTextGet(publicID int) (string, error) {
+	p := GetGroup(publicID)
+	if p.EndText != "" {
+		return p.EndText, nil
+	}
 	return dry.FileGetString(endFile)
 }
 
@@ -42,6 +51,24 @@ func NotifyTextUpdate(text string) error {
 }
 
 // NotifyTextGet return and text
-func NotifyTextGet() (string, error) {
+func NotifyTextGet(publicID int) (string, error) {
+	p := GetGroup(publicID)
+	if p.NotifyText != "" {
+		return p.NotifyText, nil
+	}
 	return dry.FileGetString(notifyFile)
+}
+
+// NotifyTextUpdate update end text notification
+func NotAWinnerTextUpdate(text string) error {
+	return dry.FileSetString(notAWinnerFile, text)
+}
+
+// NotifyTextGet return and text
+func NotAWinnerTextGet(publicID int) (string, error) {
+	// p := GetGroup(publicID)
+	// if p.NotifyText != "" {
+	// 	return p.NotifyText, nil
+	// }
+	return dry.FileGetString(notAWinnerFile)
 }

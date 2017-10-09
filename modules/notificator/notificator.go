@@ -6,12 +6,13 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/zhuharev/reraffle/models"
 	"github.com/zhuharev/reraffle/modules/vk"
 )
 
 var (
-	notifyAfter = 2 * time.Minute
+	notifyAfter = 5 * time.Hour
 )
 
 // TODO: remove DRY
@@ -36,7 +37,7 @@ func Job(token string, publicID int) (err error) {
 					name    string
 					msgID   int
 				)
-				tplBody, err = models.NotifyTextGet()
+				tplBody, err = models.NotifyTextGet(publicID)
 				if err != nil {
 					return
 				}
@@ -75,7 +76,8 @@ func Job(token string, publicID int) (err error) {
 
 			}
 		case models.Notification:
-			if !info.EndDate.IsZero() && time.Until(info.EndDate.Add(24*time.Hour)) > 7*24*time.Hour {
+			if info.EndDate.IsZero() || time.Until(info.EndDate.Add(24*time.Hour)) > 7*24*time.Hour {
+				color.Yellow("no send notify. reason: time date zero () or ")
 				continue
 			}
 			log.Println("send end notification")
@@ -87,7 +89,7 @@ func Job(token string, publicID int) (err error) {
 				name    string
 				msgID   int
 			)
-			tplBody, err = models.EndTextGet()
+			tplBody, err = models.EndTextGet(publicID)
 			if err != nil {
 				return
 			}

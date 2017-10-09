@@ -18,8 +18,8 @@
 <div>
   <ul>
     {{range .raffleList}}
-<li>Отправлено: {{ .SendedAt.Format "01.02 15:04" }} Прочитано: {{ if .Readed}} да {{ else }} нет {{end}}
-Отвечено: {{ if .Answered}} да {{ else }} нет {{end}}</li>
+<li> <a href="/publics/{{ $.public.VkID }}/healts/{{ .UserID }}"> Отправлено: {{ .SendedAt.Format "01.02 15:04" }} Прочитано: {{ if .Readed}} да {{ else }} нет {{end}}
+Отвечено: {{ if .Answered}} да {{ else }} нет {{end}} {{ .Status }}. Дата окончания: {{ .EndDate.Format "01.02" }}</a></li>
     {{end}}
   </ul>
 </div>

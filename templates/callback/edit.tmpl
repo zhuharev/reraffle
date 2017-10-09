@@ -1,0 +1,47 @@
+<form method="post">
+  <div class="uk-margin">
+    <input class="uk-input" type="text" name="confirmation" placeholder="Строка подтверждения" id="" value="{{ .crm.ConfirmationString }}">
+  </div>
+  <div class="uk-margin">
+    <input class="uk-input" type="text" name="subdomain" placeholder="Субдомен" id="" value="{{ .crm.Subdomain }}">
+  </div>
+  <div class="uk-margin">
+    <label for="">Амо логин</label>
+    <input class="uk-input" type="text" name="amo_login" placeholder="Введите название" id="" value="{{ .crm.AmoLogin }}">
+  </div>
+  <div class="uk-margin">
+    <label for="">Амо ключ API</label>
+    <input class="uk-input" type="text" name="amo_key" placeholder="Введите название" id="" value="{{ .crm.AmoKey }}">
+  </div>
+  <div class="uk-margin">
+    <label for="">ID Гугл таблицы</label>
+    <input class="uk-input" type="text" name="sheet_id" placeholder="Введите id" id="" value="{{ .crm.SheetID }}">
+  </div>
+  <div class="uk-margin">
+    <label for="">Название листа в гул-таблице</label>
+    <input class="uk-input" type="text" name="sheet_name" placeholder="Введите название" id="" value="{{ .crm.SheetName }}">
+  </div>
+  <button class="uk-button uk-button-primary">Сохранить</button>
+</form>
+
+{{.crm}}
+
+<h2>Адрес сервера</h2>
+<input style="width:100%" type="text" disabled="" value="https://bot.dev.zhuharev.ru/cb/{{ .crm.WebHookKey }}" name="" id="">
+
+<h2>лог</h2>
+
+<table class="uk-table uk-table-divider">
+    <thead>
+        <tr>
+            <th>Время</th>
+            <th>Данные</th>
+        </tr>
+    </thead>
+    <tbody>{{range .log}}
+        <tr>
+            <td>{{ .Req }}</td>
+            <td>{{ .Req.Object }}</td>
+        </tr>{{end}}
+    </tbody>
+</table>

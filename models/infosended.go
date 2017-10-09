@@ -28,6 +28,18 @@ type InfoSended struct {
 	Answered bool
 }
 
+func (is InfoSended) Status() string {
+	switch is.MessageType {
+	case Info:
+		return "Напоминание будет отправлено через " + (2*time.Minute - time.Since(is.SendedAt)).String()
+	case Notification:
+		return "Сообщение об окончании через " + time.Until(is.EndDate).String()
+	case LastChance:
+		return "Все сообщения отправлены"
+	}
+	return ""
+}
+
 // MessageType represend type of outgoing message
 type MessageType int
 
@@ -56,6 +68,10 @@ func InfoSendedGet(publicID, userID int, raffleID string) (*InfoSended, error) {
 	return is, err
 }
 
+func ParsePeriod(strPeriod string) (start time.Time, end time.Time, err error) {
+	return parsePeriod(strPeriod)
+}
+
 func parsePeriod(strPeriod string) (start time.Time, end time.Time, err error) {
 	arr := strings.Split(strPeriod, "-")
 	if len(arr) != 2 {
@@ -63,11 +79,11 @@ func parsePeriod(strPeriod string) (start time.Time, end time.Time, err error) {
 		return
 	}
 
-	start, err = time.Parse("02.01", arr[0])
+	start, err = time.Parse("2006.02.01", time.Now().Format("2006.")+arr[0])
 	if err != nil {
 		return
 	}
-	end, err = time.Parse("02.01", arr[1])
+	end, err = time.Parse("2006.02.01", time.Now().Format("2006.")+arr[1])
 	if err != nil {
 		return
 	}
@@ -124,6 +140,8 @@ func InfoSendedSetReaded(publicID, messageID int) error {
 func InfoSendedSetAnswered(publicID, messageID int) error {
 	is := InfoSended{
 		Answered: true,
+		Readed:   true,
+		ReadedAt: time.Now(),
 	}
 	_, err := db.Where("message_id = ? and public_id = ?", messageID, publicID).Cols("answered").
 		Update(&is)

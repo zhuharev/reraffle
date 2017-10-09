@@ -1,0 +1,3 @@
+{{ range .messages }}
+{{ .Date.ToTime.Format "01.02 15:04" }} {{if .ReadState }}<b>Прочитано</b>{{ end }} {{ .Body }} <br>
+{{ end }}

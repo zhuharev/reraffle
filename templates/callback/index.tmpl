@@ -1,0 +1,32 @@
+<form action="/add_crm" method="post">
+  <div class="uk-margin">
+    <input class="uk-input" type="text" name="name" value="" placeholder="Введите название" id="">
+  </div>
+  <div class="uk-margin">
+    <select name="crm_type" class="uk-select" id="">
+      <option value="1">1с</option>
+      <option value="2">Амо</option>
+    </select>
+  </div>
+  <div class="uk-margin">
+    <input class="uk-input" type="text" name="subdomain" value="" placeholder="Введите ссылку АПИ" id="">
+  </div>
+  <div class="uk-margin">
+    <label for="">Амо логин</label>
+    <input class="uk-input" type="text" name="amo_login" value="" placeholder="Введите название" id="">
+  </div>
+  <div class="uk-margin">
+    <label for="">Амо ключ API</label>
+    <input class="uk-input" type="text" name="amo_key" value="" placeholder="Введите название" id="">
+  </div>
+  <button class="uk-button uk-button-success">Создать</button>
+</form>
+
+
+<div>
+  {{ range .crms }}
+    <div>
+      <a href="/edit/{{ .WebHookKey }}">{{ .Name }}</a> (<a href="/delete/{{ .WebHookKey }}">удалить</a>)
+    </div>
+  {{ end }}
+</div>

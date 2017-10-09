@@ -16,4 +16,5 @@ type Row struct {
 	InfoSendedTime time.Time
 	InfoReaded     bool
 	InfoAnsered    bool
+	DecodedDate    time.Time
 }

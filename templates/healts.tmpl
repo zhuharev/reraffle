@@ -1,3 +1,9 @@
-<p>{{with .h_vk}}Ошибка Вконтакте: {{.}}{{end}}</p>
-<p>{{with .h_sh}}Ошибка Гугл-таблицы: {{.}}{{end}}</p>
-<p>{{with .h_tm}}Ошибка Шаблона: {{.}}{{end}}</p>
+{{ with .errors }}
+<h2>Ошибки</h2>
+{{ range .}}
+<p> {{ . }}
+{{ end }}{{end}}
+<h2>Победители</h2>
+{{range .rows}}
+<p>{{if .InfoSended}}{{else}} <a href="/publics/{{ $.publicID }}/healts/{{.VkID}}">{{.}}</a> {{end}}
+{{end}}
